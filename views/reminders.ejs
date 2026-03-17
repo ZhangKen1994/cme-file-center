@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>提醒后台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <nav class="topbar">
+        <div>
+          <strong>当前账号：</strong>
+          <span><%= currentUser.username %></span>
+          <span class="badge <%= currentUser.role === 'admin' ? 'active' : 'neutral' %>"><%= currentUser.role %></span>
+        </div>
+        <div class="topbar-actions">
+          <a class="link-btn secondary-link" href="/portal">返回入口</a>
+          <a class="link-btn secondary-link" href="/cme">CME 文件后台</a>
+          <form action="/logout" method="post">
+            <button type="submit">退出登录</button>
+          </form>
+        </div>
+      </nav>
+
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Reminder Admin</p>
+          <h1>提醒后台</h1>
+          <p class="hero-copy">
+            这里专门用于管理提醒任务。当前短信模式：
+            <strong><%= smsConfig.mode %></strong>
+            <% if (smsConfig.mode === "webhook") { %>
+              <span><%= smsConfig.webhookConfigured ? "，已配置 webhook" : "，但尚未配置 webhook 地址" %></span>
+            <% } %>
+          </p>
+        </div>
+        <div class="hero-card">
+          <div class="stat">
+            <span>提醒总数</span>
+            <strong><%= dashboard.stats.total %></strong>
+          </div>
+          <div class="stat">
+            <span>启用中</span>
+            <strong><%= dashboard.stats.active %></strong>
+          </div>
+          <div class="stat">
+            <span>发送成功</span>
+            <strong><%= dashboard.stats.sent %></strong>
+          </div>
+          <div class="stat">
+            <span>发送失败</span>
+            <strong><%= dashboard.stats.failed %></strong>
+          </div>
+        </div>
+      </header>
+
+      <% if (flash) { %>
+        <div class="notice success"><%= flash %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="notice error"><%= error %></div>
+      <% } %>
+
+      <main class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>新建提醒</h2>
+            <p>支持一次性、每天、每周提醒。</p>
+          </div>
+
+          <form action="/reminders" method="post" class="form-grid">
+            <label>
+              <span>提醒标题</span>
+              <input type="text" name="title" placeholder="比如：给客户回电话" required />
+            </label>
+
+            <label>
+              <span>手机号</span>
+              <input type="text" name="phoneNumber" placeholder="比如：13800138000" required />
+            </label>
+
+            <label>
+              <span>提醒时间</span>
+              <input type="datetime-local" name="remindAt" value="<%= defaults.remindAt %>" required />
+            </label>
+
+            <label>
+              <span>重复规则</span>
+              <select name="repeatType">
+                <option value="once">仅一次</option>
+                <option value="daily">每天</option>
+                <option value="weekly">每周</option>
+              </select>
+            </label>
+
+            <label class="full">
+              <span>短信内容</span>
+              <textarea name="message" rows="5" placeholder="请输入要发送的提醒内容" required></textarea>
+            </label>
+
+            <button type="submit" class="primary-btn">创建提醒</button>
+          </form>
+        </section>
+
+        <% if (currentUser.role === "admin") { %>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>用户管理</h2>
+              <p>管理员可以新增后台账户。默认管理员账号为 admin。</p>
+            </div>
+
+            <form action="/users" method="post" class="form-grid">
+              <label>
+                <span>用户名</span>
+                <input type="text" name="username" placeholder="比如：sales01" required />
+              </label>
+
+              <label>
+                <span>密码</span>
+                <input type="text" name="password" placeholder="请输入初始密码" required />
+              </label>
+
+              <label>
+                <span>角色</span>
+                <select name="role">
+                  <option value="user">普通用户</option>
+                  <option value="admin">管理员</option>
+                </select>
+              </label>
+
+              <button type="submit" class="primary-btn">创建用户</button>
+            </form>
+
+            <div class="table-wrap compact-space">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>用户名</th>
+                    <th>角色</th>
+                    <th>创建时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% users.forEach((user) => { %>
+                    <tr>
+                      <td><%= user.id %></td>
+                      <td><%= user.username %></td>
+                      <td><span class="badge <%= user.role === 'admin' ? 'active' : 'neutral' %>"><%= user.role %></span></td>
+                      <td><%= formatDateTime(user.created_at) %></td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        <% } %>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>提醒列表</h2>
+            <p>这里可以停用、立即发送或删除提醒。</p>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>标题</th>
+                  <th>归属用户</th>
+                  <th>手机号</th>
+                  <th>下次发送</th>
+                  <th>重复</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (!dashboard.reminders.length) { %>
+                  <tr>
+                    <td colspan="8" class="empty">还没有提醒，先创建一条试试。</td>
+                  </tr>
+                <% } %>
+                <% dashboard.reminders.forEach((item) => { %>
+                  <tr>
+                    <td><%= item.id %></td>
+                    <td>
+                      <strong><%= item.title %></strong>
+                      <div class="muted"><%= item.message %></div>
+                    </td>
+                    <td><%= item.username || "-" %></td>
+                    <td><%= item.phone_number %></td>
+                    <td><%= formatDateTime(item.next_run_at) %></td>
+                    <td><%= item.repeat_type %></td>
+                    <td>
+                      <span class="badge <%= item.is_active ? 'active' : 'inactive' %>">
+                        <%= item.is_active ? "启用" : "停用" %>
+                      </span>
+                    </td>
+                    <td>
+                      <div class="action-row">
+                        <form action="/reminders/<%= item.id %>/toggle" method="post">
+                          <button type="submit"><%= item.is_active ? "停用" : "启用" %></button>
+                        </form>
+                        <form action="/reminders/<%= item.id %>/send" method="post">
+                          <button type="submit">立即发送</button>
+                        </form>
+                        <form action="/reminders/<%= item.id %>/delete" method="post" onsubmit="return confirm('确定删除这条提醒吗？');">
+                          <button type="submit" class="danger">删除</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel full-span">
+          <div class="panel-head">
+            <h2>最近发送记录</h2>
+            <p>包含成功、模拟发送和失败日志。</p>
+          </div>
+
+          <div class="log-list">
+            <% if (!dashboard.recentLogs.length) { %>
+              <div class="empty-log">暂无发送记录。</div>
+            <% } %>
+            <% dashboard.recentLogs.forEach((log) => { %>
+              <article class="log-item">
+                <div class="log-top">
+                  <strong>#<%= log.reminder_id %> <%= log.title %></strong>
+                  <span class="badge <%= log.status === 'failed' ? 'inactive' : 'active' %>"><%= log.status %></span>
+                </div>
+                <div class="muted">归属用户：<%= log.username || "-" %></div>
+                <div class="muted"><%= formatDateTime(log.sent_at) %></div>
+                <pre><%= log.provider_response %></pre>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+  </html>

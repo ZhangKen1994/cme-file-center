@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CME 文件后台登录</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="login-body">
+    <main class="login-shell">
+      <section class="login-card">
+        <p class="eyebrow">CME File Center</p>
+        <h1>CME 文件后台登录</h1>
+        <p class="hero-copy">这是独立的 CME 文件网站入口。</p>
+
+        <% if (flash) { %>
+          <div class="notice success"><%= flash %></div>
+        <% } %>
+        <% if (error) { %>
+          <div class="notice error"><%= error %></div>
+        <% } %>
+
+        <form action="/login" method="post" class="form-grid">
+          <label>
+            <span>账号</span>
+            <input type="text" name="username" placeholder="请输入用户名" required />
+          </label>
+
+          <label>
+            <span>密码</span>
+            <input type="password" name="password" placeholder="请输入密码" required />
+          </label>
+
+          <button type="submit" class="primary-btn">登录系统</button>
+        </form>
+      </section>
+    </main>
+  </body>
+  </html>

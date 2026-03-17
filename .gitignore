@@ -1,0 +1,18 @@
+node_modules/
+.npm-cache/
+.env
+data/
+app.log
+
+# Unrelated local documents and exports
+*.pdf
+*.txt
+*.xlsx
+*.xml
+*.csv
+*.html
+fulfillment-ratio-2025.json
+deploy_open_claw.sh
+fill_template_from_pdfs.py
+pdf_to_compare_trial.py
+README_OPEN_CLAW_DEPLOY.md

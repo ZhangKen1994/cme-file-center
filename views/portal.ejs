@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>后台入口</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <nav class="topbar">
+        <div>
+          <strong>当前账号：</strong>
+          <span><%= currentUser.username %></span>
+          <span class="badge <%= currentUser.role === 'admin' ? 'active' : 'neutral' %>"><%= currentUser.role %></span>
+        </div>
+        <form action="/logout" method="post">
+          <button type="submit">退出登录</button>
+        </form>
+      </nav>
+
+      <% if (flash) { %>
+        <div class="notice success"><%= flash %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="notice error"><%= error %></div>
+      <% } %>
+
+      <header class="hero single-hero">
+        <div>
+          <p class="eyebrow">Control Center</p>
+          <h1>后台入口</h1>
+          <p class="hero-copy">请选择你要进入的系统。两个功能现在已经完全分开。</p>
+        </div>
+      </header>
+
+      <main class="portal-grid">
+        <a class="portal-card" href="/cme">
+          <p class="eyebrow">CME</p>
+          <h2>CME 文件后台</h2>
+          <p class="hero-copy">查看自动下载结果，浏览历史文件，一键下载归档文件。</p>
+          <span class="portal-link">进入 CME 文件后台</span>
+        </a>
+
+        <a class="portal-card" href="/reminders">
+          <p class="eyebrow">Reminder</p>
+          <h2>提醒后台</h2>
+          <p class="hero-copy">管理提醒任务、用户账号和最近发送记录。</p>
+          <span class="portal-link">进入提醒后台</span>
+        </a>
+      </main>
+    </div>
+  </body>
+  </html>

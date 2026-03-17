@@ -1,0 +1,25 @@
+{
+  "name": "new-project",
+  "version": "1.0.0",
+  "description": "Reminder admin panel with SMS delivery support",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node app.js",
+    "start:cme-cloud": "node cme-app.js",
+    "cme:gold-stocks": "node cme-gold-stocks/download_gold_stocks.js",
+    "cme:gold-stocks:force": "node cme-gold-stocks/download_gold_stocks.js --force"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "dayjs": "^1.11.20",
+    "dotenv": "^17.3.1",
+    "ejs": "^5.0.1",
+    "express": "^5.2.1",
+    "xlsx": "^0.18.5"
+  }
+}

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CME 文件后台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <nav class="topbar">
+        <div>
+          <strong>当前账号：</strong>
+          <span><%= currentUser.username %></span>
+          <span class="badge <%= currentUser.role === 'admin' ? 'active' : 'neutral' %>"><%= currentUser.role %></span>
+        </div>
+        <form action="/logout" method="post">
+          <button type="submit">退出登录</button>
+        </form>
+      </nav>
+
+      <header class="hero">
+        <div>
+          <p class="eyebrow">CME File Center</p>
+          <h1>CME 文件后台</h1>
+          <p class="hero-copy">云端版本只保留 CME 文件下载、归档和历史记录。</p>
+        </div>
+        <div class="hero-card">
+          <div class="stat">
+            <span>已归档文件</span>
+            <strong><%= cmeDashboard.stats.totalFiles %></strong>
+          </div>
+          <div class="stat">
+            <span>成功执行</span>
+            <strong><%= cmeDashboard.stats.successRuns %></strong>
+          </div>
+          <div class="stat">
+            <span>跳过次数</span>
+            <strong><%= cmeDashboard.stats.skippedRuns %></strong>
+          </div>
+          <div class="stat">
+            <span>失败次数</span>
+            <strong><%= cmeDashboard.stats.failedRuns %></strong>
+          </div>
+        </div>
+      </header>
+
+      <% if (flash) { %>
+        <div class="notice success"><%= flash %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="notice error"><%= error %></div>
+      <% } %>
+
+      <main class="stack">
+        <section class="panel">
+          <div class="panel-head panel-head-split">
+            <div>
+              <h2>文件状态</h2>
+              <p>系统会自动检查 Gold Stocks 文件，并只保存通过日期校验的版本。</p>
+            </div>
+            <form action="/run" method="post">
+              <button type="submit" class="primary-btn">立即检查一次</button>
+            </form>
+          </div>
+
+          <div class="status-card">
+            <h3>最新状态</h3>
+            <% if (cmeDashboard.latestStatus) { %>
+              <div class="status-grid">
+                <div>
+                  <span class="muted">执行结果</span>
+                  <div>
+                    <span class="badge <%= cmeDashboard.latestStatus.status === 'failed' ? 'inactive' : 'active' %>">
+                      <%= cmeDashboard.latestStatus.status %>
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <span class="muted">执行时间</span>
+                  <div><%= formatDateTime(cmeDashboard.latestStatus.created_at) %></div>
+                </div>
+                <div>
+                  <span class="muted">期望 Report Date</span>
+                  <div><%= cmeDashboard.latestStatus.expected_report_date || "-" %></div>
+                </div>
+                <div>
+                  <span class="muted">期望 Activity Date</span>
+                  <div><%= cmeDashboard.latestStatus.expected_activity_date || "-" %></div>
+                </div>
+              </div>
+              <p class="status-message"><%= cmeDashboard.latestStatus.message %></p>
+            <% } else { %>
+              <div class="empty-log">还没有执行记录。</div>
+            <% } %>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>历史文件</h2>
+            <p>你以后打开这个页面，就可以看到所有已经归档的文件。</p>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>交易日期</th>
+                  <th>报告日期</th>
+                  <th>文件名</th>
+                  <th>大小</th>
+                  <th>入库时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (!cmeDashboard.files.length) { %>
+                  <tr>
+                    <td colspan="7" class="empty">还没有归档文件。</td>
+                  </tr>
+                <% } %>
+                <% cmeDashboard.files.forEach((file) => { %>
+                  <tr>
+                    <td><%= file.id %></td>
+                    <td><strong><%= file.activity_date || "-" %></strong></td>
+                    <td><%= file.report_date || "-" %></td>
+                    <td><%= file.stored_filename %></td>
+                    <td><%= file.file_size_bytes ? Math.round(file.file_size_bytes / 1024) + " KB" : "-" %></td>
+                    <td><%= formatDateTime(file.created_at) %></td>
+                    <td>
+                      <a class="link-btn" href="/files/<%= file.id %>/download">下载文件</a>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </body>
+  </html>

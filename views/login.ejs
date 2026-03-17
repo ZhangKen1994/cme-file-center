@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>后台登录</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="login-body">
+    <main class="login-shell">
+      <section class="login-card">
+        <p class="eyebrow">Reminder Admin</p>
+        <h1>后台登录</h1>
+        <p class="hero-copy">默认管理员账号：<strong>admin</strong>，密码：<strong>123</strong></p>
+
+        <% if (flash) { %>
+          <div class="notice success"><%= flash %></div>
+        <% } %>
+        <% if (error) { %>
+          <div class="notice error"><%= error %></div>
+        <% } %>
+
+        <form action="/login" method="post" class="form-grid">
+          <label>
+            <span>账号</span>
+            <input type="text" name="username" placeholder="请输入用户名" required />
+          </label>
+
+          <label>
+            <span>密码</span>
+            <input type="password" name="password" placeholder="请输入密码" required />
+          </label>
+
+          <button type="submit" class="primary-btn">登录系统</button>
+        </form>
+      </section>
+    </main>
+  </body>
+  </html>

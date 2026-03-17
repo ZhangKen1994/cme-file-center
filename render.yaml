@@ -1,0 +1,22 @@
+services:
+  - type: web
+    runtime: node
+    name: cme-file-center
+    buildCommand: npm install
+    startCommand: node cme-app.js
+    healthCheckPath: /health
+    disk:
+      name: cme-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: DATA_DIR
+        value: /var/data/app-data
+      - key: CME_STORAGE_DIR
+        value: /var/data/cme-downloads
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
