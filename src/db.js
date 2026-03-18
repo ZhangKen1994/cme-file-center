@@ -63,6 +63,8 @@ function initDb() {
 
     CREATE TABLE IF NOT EXISTS cme_download_files (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_key TEXT,
+      report_label TEXT,
       source_url TEXT NOT NULL,
       stored_filename TEXT NOT NULL,
       stored_path TEXT NOT NULL,
@@ -76,6 +78,8 @@ function initDb() {
 
     CREATE TABLE IF NOT EXISTS cme_download_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_key TEXT,
+      report_label TEXT,
       status TEXT NOT NULL,
       message TEXT NOT NULL,
       report_date TEXT,
@@ -91,6 +95,34 @@ function initDb() {
   if (!hasColumn("reminders", "user_id")) {
     db.exec("ALTER TABLE reminders ADD COLUMN user_id INTEGER REFERENCES users(id)");
   }
+
+  if (!hasColumn("cme_download_files", "report_key")) {
+    db.exec("ALTER TABLE cme_download_files ADD COLUMN report_key TEXT");
+  }
+
+  if (!hasColumn("cme_download_files", "report_label")) {
+    db.exec("ALTER TABLE cme_download_files ADD COLUMN report_label TEXT");
+  }
+
+  if (!hasColumn("cme_download_logs", "report_key")) {
+    db.exec("ALTER TABLE cme_download_logs ADD COLUMN report_key TEXT");
+  }
+
+  if (!hasColumn("cme_download_logs", "report_label")) {
+    db.exec("ALTER TABLE cme_download_logs ADD COLUMN report_label TEXT");
+  }
+
+  db.exec(`
+    UPDATE cme_download_files
+    SET report_key = COALESCE(report_key, 'gold'),
+        report_label = COALESCE(report_label, 'Gold Stocks')
+    WHERE report_key IS NULL OR report_label IS NULL;
+
+    UPDATE cme_download_logs
+    SET report_key = COALESCE(report_key, 'gold'),
+        report_label = COALESCE(report_label, 'Gold Stocks')
+    WHERE report_key IS NULL OR report_label IS NULL;
+  `);
 
   const now = new Date().toISOString();
   const defaultAdminUsername = String(process.env.ADMIN_USERNAME || "admin").trim() || "admin";

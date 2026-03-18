@@ -31,16 +31,20 @@
             <strong><%= cmeDashboard.stats.totalFiles %></strong>
           </div>
           <div class="stat">
+            <span>黄金文件</span>
+            <strong><%= cmeDashboard.stats.goldFiles %></strong>
+          </div>
+          <div class="stat">
+            <span>白银文件</span>
+            <strong><%= cmeDashboard.stats.silverFiles %></strong>
+          </div>
+          <div class="stat">
             <span>成功执行</span>
             <strong><%= cmeDashboard.stats.successRuns %></strong>
           </div>
           <div class="stat">
-            <span>跳过次数</span>
-            <strong><%= cmeDashboard.stats.skippedRuns %></strong>
-          </div>
-          <div class="stat">
-            <span>失败次数</span>
-            <strong><%= cmeDashboard.stats.failedRuns %></strong>
+            <span>跳过/失败</span>
+            <strong><%= cmeDashboard.stats.skippedRuns + cmeDashboard.stats.failedRuns %></strong>
           </div>
         </div>
       </header>
@@ -57,7 +61,7 @@
           <div class="panel-head panel-head-split">
             <div>
               <h2>文件状态</h2>
-              <p>系统会自动检查 Gold Stocks 文件，并只保存通过日期校验的版本。</p>
+              <p>系统会自动检查 Gold Stocks 和 Silver Stocks，并只保存通过日期校验的版本。</p>
             </div>
             <form action="/run" method="post">
               <button type="submit" class="primary-btn">立即检查一次</button>
@@ -75,6 +79,10 @@
                       <%= cmeDashboard.latestStatus.status %>
                     </span>
                   </div>
+                </div>
+                <div>
+                  <span class="muted">文件类型</span>
+                  <div><%= cmeDashboard.latestStatus.report_label || "-" %></div>
                 </div>
                 <div>
                   <span class="muted">执行时间</span>
@@ -96,48 +104,50 @@
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <h2>历史文件</h2>
-            <p>你以后打开这个页面，就可以看到所有已经归档的文件。</p>
-          </div>
+        <% cmeDashboard.fileGroups.forEach((group) => { %>
+          <section class="panel">
+            <div class="panel-head">
+              <h2><%= group.label %></h2>
+              <p>这个分类下会保留已经归档的历史文件。</p>
+            </div>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>交易日期</th>
-                  <th>报告日期</th>
-                  <th>文件名</th>
-                  <th>大小</th>
-                  <th>入库时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% if (!cmeDashboard.files.length) { %>
+            <div class="table-wrap">
+              <table>
+                <thead>
                   <tr>
-                    <td colspan="7" class="empty">还没有归档文件。</td>
+                    <th>ID</th>
+                    <th>交易日期</th>
+                    <th>报告日期</th>
+                    <th>文件名</th>
+                    <th>大小</th>
+                    <th>入库时间</th>
+                    <th>操作</th>
                   </tr>
-                <% } %>
-                <% cmeDashboard.files.forEach((file) => { %>
-                  <tr>
-                    <td><%= file.id %></td>
-                    <td><strong><%= file.activity_date || "-" %></strong></td>
-                    <td><%= file.report_date || "-" %></td>
-                    <td><%= file.stored_filename %></td>
-                    <td><%= file.file_size_bytes ? Math.round(file.file_size_bytes / 1024) + " KB" : "-" %></td>
-                    <td><%= formatDateTime(file.created_at) %></td>
-                    <td>
-                      <a class="link-btn" href="/files/<%= file.id %>/download">下载文件</a>
-                    </td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
-        </section>
+                </thead>
+                <tbody>
+                  <% if (!group.files.length) { %>
+                    <tr>
+                      <td colspan="7" class="empty">还没有归档文件。</td>
+                    </tr>
+                  <% } %>
+                  <% group.files.forEach((file) => { %>
+                    <tr>
+                      <td><%= file.id %></td>
+                      <td><strong><%= file.activity_date || "-" %></strong></td>
+                      <td><%= file.report_date || "-" %></td>
+                      <td><%= file.stored_filename %></td>
+                      <td><%= file.file_size_bytes ? Math.round(file.file_size_bytes / 1024) + " KB" : "-" %></td>
+                      <td><%= formatDateTime(file.created_at) %></td>
+                      <td>
+                        <a class="link-btn" href="/files/<%= file.id %>/download">下载文件</a>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        <% }) %>
 
       </main>
     </div>

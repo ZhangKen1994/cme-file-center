@@ -3,6 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
 
 const { initDb, db } = require("./src/db");
 const {
@@ -13,6 +15,7 @@ const {
   getUserFromRequest,
 } = require("./src/auth-service");
 const {
+  CONFIG,
   getCmeDashboardData,
   getCmeFileById,
   runCmeDownloadCycle,
@@ -20,6 +23,10 @@ const {
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const scheduledRuns = new Set();
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 initDb();
 
@@ -126,15 +133,57 @@ app.get("/health", (_req, res) => {
   });
 });
 
-setInterval(() => {
-  runCmeDownloadCycle().catch((error) => {
-    console.error("[scheduler] runCmeDownloadCycle failed:", error);
-  });
-}, 30 * 60 * 1000);
+function getScheduleKey(nowNy) {
+  return `${nowNy.format("YYYY-MM-DD-HH")}`;
+}
 
-runCmeDownloadCycle().catch((error) => {
-  console.error("[startup] initial CME scan failed:", error);
-});
+async function runScheduledCycle(reason) {
+  try {
+    const result = await runCmeDownloadCycle();
+    console.log(`[scheduler] ${reason}:`, result.status, result.reportLabel || "");
+  } catch (error) {
+    console.error(`[scheduler] ${reason} failed:`, error);
+  }
+}
+
+function tickScheduler() {
+  const nowNy = dayjs().tz(CONFIG.timezone);
+  const hour = nowNy.hour();
+  if (!CONFIG.activeHoursNy.includes(hour)) {
+    return;
+  }
+
+  const minute = nowNy.minute();
+  if (minute > 10) {
+    return;
+  }
+
+  const key = getScheduleKey(nowNy);
+  if (scheduledRuns.has(key)) {
+    return;
+  }
+
+  scheduledRuns.add(key);
+  runScheduledCycle(`ny-${key}`);
+}
+
+function primeCurrentWindow() {
+  const nowNy = dayjs().tz(CONFIG.timezone);
+  if (!CONFIG.activeHoursNy.includes(nowNy.hour())) {
+    return;
+  }
+
+  const key = getScheduleKey(nowNy);
+  if (scheduledRuns.has(key)) {
+    return;
+  }
+
+  scheduledRuns.add(key);
+  runScheduledCycle(`startup-ny-${key}`);
+}
+
+setInterval(tickScheduler, 60 * 1000);
+primeCurrentWindow();
 
 app.listen(port, () => {
   console.log(`CME file center running at http://localhost:${port}`);

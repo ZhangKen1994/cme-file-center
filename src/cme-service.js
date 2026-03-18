@@ -15,15 +15,27 @@ dayjs.extend(customParseFormat);
 
 const CONFIG = {
   timezone: "America/New_York",
-  downloadUrl: "https://www.cmegroup.com/delivery_reports/Gold_Stocks.xls",
   holidayCalendarUrl: "https://www.cmegroup.com/tools-information/holiday-calendar.html",
-  reportName: "Gold_Stocks",
-  activeHoursNy: { start: 12, end: 15 },
+  activeHoursNy: [12, 13, 14, 15],
   requestTimeoutSeconds: 40,
   storageDir: process.env.CME_STORAGE_DIR
     ? path.resolve(process.env.CME_STORAGE_DIR)
     : path.join(dataDir, "cme-downloads"),
-  tempDir: path.join(os.tmpdir(), "cme-gold-stocks"),
+  tempDir: path.join(os.tmpdir(), "cme-stocks"),
+  reports: [
+    {
+      key: "gold",
+      label: "Gold Stocks",
+      downloadUrl: "https://www.cmegroup.com/delivery_reports/Gold_Stocks.xls",
+      reportName: "Gold_Stocks",
+    },
+    {
+      key: "silver",
+      label: "Silver Stocks",
+      downloadUrl: "https://www.cmegroup.com/delivery_reports/Silver_Stocks.xls",
+      reportName: "Silver_Stocks",
+    },
+  ],
 };
 
 function ensureCmeDirectories() {
@@ -167,11 +179,13 @@ function logCmeRun(entry) {
   db.prepare(
     `
       INSERT INTO cme_download_logs (
-        status, message, report_date, activity_date, expected_report_date,
+        report_key, report_label, status, message, report_date, activity_date, expected_report_date,
         expected_activity_date, file_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   ).run(
+    entry.reportKey || null,
+    entry.reportLabel || null,
     entry.status,
     entry.message,
     entry.reportDate || null,
@@ -201,7 +215,7 @@ function listCmeFiles() {
     `
       SELECT *
       FROM cme_download_files
-      ORDER BY activity_date DESC, created_at DESC, id DESC
+      ORDER BY activity_date DESC, report_key ASC, created_at DESC, id DESC
     `
   ).all();
 }
@@ -218,10 +232,41 @@ function listRecentCmeLogs(limit = 20) {
   ).all(limit);
 }
 
+function groupFilesByReport(files) {
+  const groups = {};
+  for (const report of CONFIG.reports) {
+    groups[report.key] = {
+      key: report.key,
+      label: report.label,
+      files: [],
+    };
+  }
+
+  for (const file of files) {
+    const key = file.report_key || "gold";
+    if (!groups[key]) {
+      groups[key] = {
+        key,
+        label: file.report_label || key,
+        files: [],
+      };
+    }
+    groups[key].files.push(file);
+  }
+
+  return CONFIG.reports.map((report) => groups[report.key]);
+}
+
 function getCmeDashboardData() {
   const files = listCmeFiles();
   const stats = {
     totalFiles: db.prepare("SELECT COUNT(*) AS count FROM cme_download_files").get().count,
+    goldFiles: db
+      .prepare("SELECT COUNT(*) AS count FROM cme_download_files WHERE report_key = 'gold'")
+      .get().count,
+    silverFiles: db
+      .prepare("SELECT COUNT(*) AS count FROM cme_download_files WHERE report_key = 'silver'")
+      .get().count,
     successRuns: db
       .prepare("SELECT COUNT(*) AS count FROM cme_download_logs WHERE status IN ('saved', 'duplicate')")
       .get().count,
@@ -236,6 +281,7 @@ function getCmeDashboardData() {
   return {
     stats,
     files,
+    fileGroups: groupFilesByReport(files),
     latestStatus: getLatestCmeStatus(),
     recentLogs: listRecentCmeLogs(),
   };
@@ -245,52 +291,67 @@ function getCmeFileById(id) {
   return db.prepare("SELECT * FROM cme_download_files WHERE id = ?").get(id);
 }
 
-async function runCmeDownloadCycle(options = {}) {
-  ensureCmeDirectories();
-
-  const force = Boolean(options.force);
-  const skipDateValidation = Boolean(options.skipDateValidation);
+function buildRunContext() {
   const nowNy = dayjs().tz(CONFIG.timezone);
-  const todayNy = nowNy.startOf("day");
-
   let holidaySet = new Set();
+
   try {
     holidaySet = fetchCmeClearingHolidays();
-  } catch (error) {
+  } catch (_error) {
     holidaySet = new Set();
   }
 
-  const expectedReportDate = todayNy.format("YYYY-MM-DD");
-  const expectedActivityDate = previousCmeBusinessDay(todayNy, holidaySet).format("YYYY-MM-DD");
+  const todayNy = nowNy.startOf("day");
+  return {
+    nowNy,
+    holidaySet,
+    expectedReportDate: todayNy.format("YYYY-MM-DD"),
+    expectedActivityDate: previousCmeBusinessDay(todayNy, holidaySet).format("YYYY-MM-DD"),
+  };
+}
 
-  if (!force) {
-    if (!isCmeBusinessDay(todayNy, holidaySet)) {
-      const message = `${expectedReportDate} is not a CME business day`;
-      logCmeRun({
-        status: "skip_non_business_day",
-        message,
-        expectedReportDate,
-        expectedActivityDate,
-      });
-      return { status: "skip_non_business_day", message };
-    }
+function shouldSkipWindow(force, context) {
+  if (force) {
+    return null;
+  }
 
-    const hour = nowNy.hour();
-    if (hour < CONFIG.activeHoursNy.start || hour > CONFIG.activeHoursNy.end) {
-      const message = `New York time ${nowNy.format("YYYY-MM-DD HH:mm:ss")} is outside the download window`;
-      logCmeRun({
-        status: "skip_outside_window",
-        message,
-        expectedReportDate,
-        expectedActivityDate,
-      });
-      return { status: "skip_outside_window", message };
-    }
+  if (!isCmeBusinessDay(context.nowNy, context.holidaySet)) {
+    return {
+      status: "skip_non_business_day",
+      message: `${context.expectedReportDate} is not a CME business day`,
+    };
+  }
+
+  if (!CONFIG.activeHoursNy.includes(context.nowNy.hour())) {
+    return {
+      status: "skip_outside_window",
+      message: `New York time ${context.nowNy.format("YYYY-MM-DD HH:mm:ss")} is outside the download window`,
+    };
+  }
+
+  return null;
+}
+
+function runSingleReportCycle(report, options, context) {
+  const force = Boolean(options.force);
+  const skipDateValidation = Boolean(options.skipDateValidation);
+  const skipResult = shouldSkipWindow(force, context);
+
+  if (skipResult) {
+    logCmeRun({
+      reportKey: report.key,
+      reportLabel: report.label,
+      status: skipResult.status,
+      message: `[${report.label}] ${skipResult.message}`,
+      expectedReportDate: context.expectedReportDate,
+      expectedActivityDate: context.expectedActivityDate,
+    });
+    return { status: skipResult.status, message: skipResult.message };
   }
 
   try {
-    const tempFile = path.join(CONFIG.tempDir, `${CONFIG.reportName}.xls`);
-    const metadata = pythonDownloadBinary(CONFIG.downloadUrl, tempFile);
+    const tempFile = path.join(CONFIG.tempDir, `${report.reportName}.xls`);
+    const metadata = pythonDownloadBinary(report.downloadUrl, tempFile);
     const buffer = fs.readFileSync(tempFile);
 
     if (!buffer.length) {
@@ -300,47 +361,53 @@ async function runCmeDownloadCycle(options = {}) {
     const parsed = parseWorkbook(buffer);
 
     if (!skipDateValidation) {
-      if (parsed.reportDate !== expectedReportDate) {
-        const message = `report date mismatch: expected ${expectedReportDate}, got ${parsed.reportDate}`;
+      if (parsed.reportDate !== context.expectedReportDate) {
+        const message = `report date mismatch: expected ${context.expectedReportDate}, got ${parsed.reportDate}`;
         logCmeRun({
+          reportKey: report.key,
+          reportLabel: report.label,
           status: "skip_report_date_mismatch",
-          message,
+          message: `[${report.label}] ${message}`,
           reportDate: parsed.reportDate,
           activityDate: parsed.activityDate,
-          expectedReportDate,
-          expectedActivityDate,
+          expectedReportDate: context.expectedReportDate,
+          expectedActivityDate: context.expectedActivityDate,
         });
         return { status: "skip_report_date_mismatch", message };
       }
 
-      if (parsed.activityDate !== expectedActivityDate) {
-        const message = `activity date mismatch: expected ${expectedActivityDate}, got ${parsed.activityDate}`;
+      if (parsed.activityDate !== context.expectedActivityDate) {
+        const message = `activity date mismatch: expected ${context.expectedActivityDate}, got ${parsed.activityDate}`;
         logCmeRun({
+          reportKey: report.key,
+          reportLabel: report.label,
           status: "skip_activity_date_mismatch",
-          message,
+          message: `[${report.label}] ${message}`,
           reportDate: parsed.reportDate,
           activityDate: parsed.activityDate,
-          expectedReportDate,
-          expectedActivityDate,
+          expectedReportDate: context.expectedReportDate,
+          expectedActivityDate: context.expectedActivityDate,
         });
         return { status: "skip_activity_date_mismatch", message };
       }
     }
 
-    const storedFilename = `${parsed.activityDate}_${CONFIG.reportName}.xls`;
+    const storedFilename = `${parsed.activityDate}_${report.reportName}.xls`;
     const storedPath = path.join(CONFIG.storageDir, storedFilename);
     const existing = db
-      .prepare("SELECT * FROM cme_download_files WHERE activity_date = ? LIMIT 1")
-      .get(parsed.activityDate);
+      .prepare("SELECT * FROM cme_download_files WHERE report_key = ? AND activity_date = ? LIMIT 1")
+      .get(report.key, parsed.activityDate);
 
     if (existing) {
       logCmeRun({
+        reportKey: report.key,
+        reportLabel: report.label,
         status: "duplicate",
-        message: `${storedFilename} already exists`,
+        message: `[${report.label}] ${storedFilename} already exists`,
         reportDate: parsed.reportDate,
         activityDate: parsed.activityDate,
-        expectedReportDate,
-        expectedActivityDate,
+        expectedReportDate: context.expectedReportDate,
+        expectedActivityDate: context.expectedActivityDate,
         fileId: existing.id,
       });
       return { status: "duplicate", file: existing };
@@ -348,17 +415,17 @@ async function runCmeDownloadCycle(options = {}) {
 
     fs.copyFileSync(tempFile, storedPath);
     const now = new Date().toISOString();
-    const insert = db.prepare(
+    const result = db.prepare(
       `
         INSERT INTO cme_download_files (
-          source_url, stored_filename, stored_path, report_date, activity_date,
+          report_key, report_label, source_url, stored_filename, stored_path, report_date, activity_date,
           file_size_bytes, last_modified, etag, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
-    );
-
-    const result = insert.run(
-      CONFIG.downloadUrl,
+    ).run(
+      report.key,
+      report.label,
+      report.downloadUrl,
       storedFilename,
       storedPath,
       parsed.reportDate,
@@ -370,12 +437,14 @@ async function runCmeDownloadCycle(options = {}) {
     );
 
     logCmeRun({
+      reportKey: report.key,
+      reportLabel: report.label,
       status: "saved",
-      message: `saved ${storedFilename}`,
+      message: `[${report.label}] saved ${storedFilename}`,
       reportDate: parsed.reportDate,
       activityDate: parsed.activityDate,
-      expectedReportDate,
-      expectedActivityDate,
+      expectedReportDate: context.expectedReportDate,
+      expectedActivityDate: context.expectedActivityDate,
       fileId: result.lastInsertRowid,
     });
 
@@ -386,13 +455,36 @@ async function runCmeDownloadCycle(options = {}) {
   } catch (error) {
     const message = error.message || "download failed";
     logCmeRun({
+      reportKey: report.key,
+      reportLabel: report.label,
       status: "failed",
-      message,
-      expectedReportDate,
-      expectedActivityDate,
+      message: `[${report.label}] ${message}`,
+      expectedReportDate: context.expectedReportDate,
+      expectedActivityDate: context.expectedActivityDate,
     });
     return { status: "failed", message };
   }
+}
+
+async function runCmeDownloadCycle(options = {}) {
+  ensureCmeDirectories();
+  const context = buildRunContext();
+  const results = CONFIG.reports.map((report) => ({
+    reportKey: report.key,
+    reportLabel: report.label,
+    ...runSingleReportCycle(report, options, context),
+  }));
+
+  const prioritized =
+    results.find((result) => result.status === "saved") ||
+    results.find((result) => result.status === "duplicate") ||
+    results.find((result) => result.status === "failed") ||
+    results[0];
+
+  return {
+    ...prioritized,
+    results,
+  };
 }
 
 module.exports = {
