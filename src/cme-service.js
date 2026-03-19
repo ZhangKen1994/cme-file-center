@@ -16,7 +16,7 @@ dayjs.extend(customParseFormat);
 const CONFIG = {
   timezone: "America/New_York",
   holidayCalendarUrl: "https://www.cmegroup.com/tools-information/holiday-calendar.html",
-  activeHoursNy: [12, 13, 14, 15],
+  activeHoursNy: Array.from({ length: 24 }, (_value, hour) => hour),
   requestTimeoutSeconds: 40,
   storageDir: process.env.CME_STORAGE_DIR
     ? path.resolve(process.env.CME_STORAGE_DIR)
