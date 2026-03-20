@@ -100,15 +100,32 @@ app.get("/", requireAuth, (req, res) => {
 app.post("/run", requireAuth, async (req, res) => {
   try {
     const result = await runCmeDownloadCycle({ force: true });
-    const message =
-      result.status === "saved"
-        ? "CME 文件已下载"
-        : result.status === "duplicate"
-          ? "今天对应的文件已经存在"
-          : result.message || "检查已完成";
+    const saved = result.results?.filter((item) => item.status === "saved") || [];
+    const failed = result.results?.filter((item) => item.status === "failed") || [];
+    const duplicates = result.results?.filter((item) => item.status === "duplicate") || [];
+    const reportMismatch = result.results?.find((item) => item.status === "skip_report_date_mismatch");
+    const activityMismatch = result.results?.find((item) => item.status === "skip_activity_date_mismatch");
+
+    let message = "检查已完成";
+    if (saved.length === 2) {
+      message = "黄金和白银都已更新";
+    } else if (saved.length === 1) {
+      message = `${saved[0].reportLabel === "Gold Stocks" ? "黄金" : "白银"}已更新`;
+    } else if (failed.length > 0) {
+      message = `${failed[0].reportLabel === "Gold Stocks" ? "黄金" : "白银"}暂时下载失败`;
+    } else if (reportMismatch) {
+      message = `${reportMismatch.reportLabel === "Gold Stocks" ? "黄金" : "白银"}今天还没更新`;
+    } else if (activityMismatch) {
+      message = `${activityMismatch.reportLabel === "Gold Stocks" ? "黄金" : "白银"}今天还没更新`;
+    } else if (duplicates.length === 2) {
+      message = "黄金和白银今天都已归档";
+    } else if (duplicates.length === 1) {
+      message = `${duplicates[0].reportLabel === "Gold Stocks" ? "黄金" : "白银"}今天已归档`;
+    }
+
     res.redirect(`/?flash=${encodeURIComponent(message)}`);
   } catch (error) {
-    res.redirect(`/?error=${encodeURIComponent(error.message)}`);
+    res.redirect("/?error=检查失败，请稍后再试");
   }
 });
 

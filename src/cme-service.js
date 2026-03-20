@@ -32,7 +32,7 @@ const CONFIG = {
     {
       key: "silver",
       label: "Silver Stocks",
-      downloadUrl: "https://www.cmegroup.com/delivery_reports/Silver_Stocks.xls",
+      downloadUrl: "https://www.cmegroup.com/delivery_reports/Silver_stocks.xls",
       reportName: "Silver_Stocks",
     },
   ],
@@ -497,8 +497,8 @@ async function runCmeDownloadCycle(options = {}) {
 
   const prioritized =
     results.find((result) => result.status === "saved") ||
-    results.find((result) => result.status === "duplicate") ||
     results.find((result) => result.status === "failed") ||
+    results.find((result) => result.status === "duplicate") ||
     results[0];
 
   return {
