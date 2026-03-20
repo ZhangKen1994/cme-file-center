@@ -38,14 +38,6 @@
             <span>白银文件</span>
             <strong><%= cmeDashboard.stats.silverFiles %></strong>
           </div>
-          <div class="stat">
-            <span>成功执行</span>
-            <strong><%= cmeDashboard.stats.successRuns %></strong>
-          </div>
-          <div class="stat">
-            <span>跳过/失败</span>
-            <strong><%= cmeDashboard.stats.skippedRuns + cmeDashboard.stats.failedRuns %></strong>
-          </div>
         </div>
       </header>
 
@@ -61,68 +53,11 @@
           <div class="panel-head panel-head-split">
             <div>
               <h2>文件状态</h2>
-              <p>系统会自动检查 Gold Stocks 和 Silver Stocks，并只保存通过日期校验的版本。</p>
+              <p>系统会自动检查黄金和白银文件，并只保存符合条件的版本。</p>
             </div>
             <form action="/run" method="post">
               <button type="submit" class="primary-btn">立即检查一次</button>
             </form>
-          </div>
-
-          <div class="status-card">
-            <h3>分类状态</h3>
-            <div class="status-grid">
-              <% ['gold', 'silver'].forEach((reportKey) => { const reportStatus = cmeDashboard.latestStatuses[reportKey]; %>
-                <div>
-                  <span class="muted"><%= reportKey === 'gold' ? '黄金最新状态' : '白银最新状态' %></span>
-                  <% if (reportStatus) { %>
-                    <div>
-                      <span class="badge <%= reportStatus.status === 'failed' ? 'inactive' : 'active' %>">
-                        <%= reportStatus.status %>
-                      </span>
-                    </div>
-                    <div class="muted"><%= formatDateTime(reportStatus.created_at) %></div>
-                    <div class="muted"><%= reportStatus.message %></div>
-                  <% } else { %>
-                    <div class="muted">还没有记录。</div>
-                  <% } %>
-                </div>
-              <% }) %>
-            </div>
-          </div>
-
-          <div class="status-card">
-            <h3>最新状态</h3>
-            <% if (cmeDashboard.latestStatus) { %>
-              <div class="status-grid">
-                <div>
-                  <span class="muted">执行结果</span>
-                  <div>
-                    <span class="badge <%= cmeDashboard.latestStatus.status === 'failed' ? 'inactive' : 'active' %>">
-                      <%= cmeDashboard.latestStatus.status %>
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <span class="muted">文件类型</span>
-                  <div><%= cmeDashboard.latestStatus.report_label || "-" %></div>
-                </div>
-                <div>
-                  <span class="muted">执行时间</span>
-                  <div><%= formatDateTime(cmeDashboard.latestStatus.created_at) %></div>
-                </div>
-                <div>
-                  <span class="muted">期望 Report Date</span>
-                  <div><%= cmeDashboard.latestStatus.expected_report_date || "-" %></div>
-                </div>
-                <div>
-                  <span class="muted">期望 Activity Date</span>
-                  <div><%= cmeDashboard.latestStatus.expected_activity_date || "-" %></div>
-                </div>
-              </div>
-              <p class="status-message"><%= cmeDashboard.latestStatus.message %></p>
-            <% } else { %>
-              <div class="empty-log">还没有执行记录。</div>
-            <% } %>
           </div>
         </section>
 
