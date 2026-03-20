@@ -210,6 +210,20 @@ function getLatestCmeStatus() {
   );
 }
 
+function getLatestCmeStatusByReport(reportKey) {
+  return (
+    db.prepare(
+      `
+        SELECT *
+        FROM cme_download_logs
+        WHERE report_key = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+      `
+    ).get(reportKey) || null
+  );
+}
+
 function listCmeFiles() {
   return db.prepare(
     `
@@ -283,6 +297,9 @@ function getCmeDashboardData() {
     files,
     fileGroups: groupFilesByReport(files),
     latestStatus: getLatestCmeStatus(),
+    latestStatuses: Object.fromEntries(
+      CONFIG.reports.map((report) => [report.key, getLatestCmeStatusByReport(report.key)])
+    ),
     recentLogs: listRecentCmeLogs(),
   };
 }
@@ -302,11 +319,14 @@ function buildRunContext() {
   }
 
   const todayNy = nowNy.startOf("day");
+  const expectedReportDay = previousCmeBusinessDay(todayNy, holidaySet);
+  const expectedActivityDay = previousCmeBusinessDay(expectedReportDay, holidaySet);
+
   return {
     nowNy,
     holidaySet,
-    expectedReportDate: todayNy.format("YYYY-MM-DD"),
-    expectedActivityDate: previousCmeBusinessDay(todayNy, holidaySet).format("YYYY-MM-DD"),
+    expectedReportDate: expectedReportDay.format("YYYY-MM-DD"),
+    expectedActivityDate: expectedActivityDay.format("YYYY-MM-DD"),
   };
 }
 

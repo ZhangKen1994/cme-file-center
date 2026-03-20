@@ -69,6 +69,28 @@
           </div>
 
           <div class="status-card">
+            <h3>分类状态</h3>
+            <div class="status-grid">
+              <% ['gold', 'silver'].forEach((reportKey) => { const reportStatus = cmeDashboard.latestStatuses[reportKey]; %>
+                <div>
+                  <span class="muted"><%= reportKey === 'gold' ? '黄金最新状态' : '白银最新状态' %></span>
+                  <% if (reportStatus) { %>
+                    <div>
+                      <span class="badge <%= reportStatus.status === 'failed' ? 'inactive' : 'active' %>">
+                        <%= reportStatus.status %>
+                      </span>
+                    </div>
+                    <div class="muted"><%= formatDateTime(reportStatus.created_at) %></div>
+                    <div class="muted"><%= reportStatus.message %></div>
+                  <% } else { %>
+                    <div class="muted">还没有记录。</div>
+                  <% } %>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+
+          <div class="status-card">
             <h3>最新状态</h3>
             <% if (cmeDashboard.latestStatus) { %>
               <div class="status-grid">
