@@ -154,39 +154,56 @@ function pythonFetchText(url) {
 }
 
 function pythonDownloadBinary(url, targetFile) {
-  const metadataJson = execFileSync(
-    "python3",
+  const headerFile = path.join(CONFIG.tempDir, `${path.basename(targetFile)}.headers.txt`);
+  execFileSync(
+    "curl",
     [
-      "-c",
-      [
-        "import json, sys, urllib.request",
-        "url = sys.argv[1]",
-        "target = sys.argv[2]",
-        "headers = {",
-        "    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',",
-        "    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',",
-        "    'Accept-Language': 'en-US,en;q=0.9',",
-        "    'Referer': 'https://www.cmegroup.com/solutions/clearing/operations-and-deliveries/nymex-delivery-notices.html',",
-        "    'Sec-Fetch-Site': 'same-origin',",
-        "    'Sec-Fetch-Mode': 'navigate',",
-        "    'Sec-Fetch-Dest': 'document',",
-        "    'Upgrade-Insecure-Requests': '1',",
-        "}",
-        "req = urllib.request.Request(url, headers=headers)",
-        `with urllib.request.urlopen(req, timeout=${CONFIG.requestTimeoutSeconds}) as response:`,
-        "    data = response.read()",
-        "    with open(target, 'wb') as f:",
-        "        f.write(data)",
-        "    headers = {k.lower(): v for k, v in response.headers.items()}",
-        "    print(json.dumps(headers))",
-      ].join("\n"),
-      url,
+      "-L",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      String(CONFIG.requestTimeoutSeconds),
+      "--user-agent",
+      REQUEST_HEADERS["User-Agent"],
+      "--header",
+      `Accept: ${REQUEST_HEADERS.Accept}`,
+      "--header",
+      `Accept-Language: ${REQUEST_HEADERS["Accept-Language"]}`,
+      "--header",
+      `Referer: ${REQUEST_HEADERS.Referer}`,
+      "--header",
+      `Sec-Fetch-Site: ${REQUEST_HEADERS["Sec-Fetch-Site"]}`,
+      "--header",
+      `Sec-Fetch-Mode: ${REQUEST_HEADERS["Sec-Fetch-Mode"]}`,
+      "--header",
+      `Sec-Fetch-Dest: ${REQUEST_HEADERS["Sec-Fetch-Dest"]}`,
+      "--header",
+      `Upgrade-Insecure-Requests: ${REQUEST_HEADERS["Upgrade-Insecure-Requests"]}`,
+      "--dump-header",
+      headerFile,
+      "--output",
       targetFile,
+      url,
     ],
     { encoding: "utf8" }
   );
 
-  return JSON.parse(metadataJson);
+  const rawHeaders = fs.existsSync(headerFile) ? fs.readFileSync(headerFile, "utf8") : "";
+  const metadata = {};
+  for (const line of rawHeaders.split(/\r?\n/)) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex).trim().toLowerCase();
+    const value = line.slice(separatorIndex + 1).trim();
+    if (key && value) {
+      metadata[key] = value;
+    }
+  }
+
+  return metadata;
 }
 
 function fetchCmeClearingHolidays() {
