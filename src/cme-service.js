@@ -38,6 +38,20 @@ const CONFIG = {
   ],
 };
 
+const REQUEST_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer:
+    "https://www.cmegroup.com/solutions/clearing/operations-and-deliveries/nymex-delivery-notices.html",
+  "Sec-Fetch-Site": "same-origin",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Dest": "document",
+  "Upgrade-Insecure-Requests": "1",
+};
+
 function ensureCmeDirectories() {
   fs.mkdirSync(CONFIG.storageDir, { recursive: true });
   fs.mkdirSync(CONFIG.tempDir, { recursive: true });
@@ -119,7 +133,17 @@ function pythonFetchText(url) {
       [
         "import sys, urllib.request",
         "url = sys.argv[1]",
-        "req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X)'})",
+        "headers = {",
+        "    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',",
+        "    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',",
+        "    'Accept-Language': 'en-US,en;q=0.9',",
+        "    'Referer': 'https://www.cmegroup.com/solutions/clearing/operations-and-deliveries/nymex-delivery-notices.html',",
+        "    'Sec-Fetch-Site': 'same-origin',",
+        "    'Sec-Fetch-Mode': 'navigate',",
+        "    'Sec-Fetch-Dest': 'document',",
+        "    'Upgrade-Insecure-Requests': '1',",
+        "}",
+        "req = urllib.request.Request(url, headers=headers)",
         `with urllib.request.urlopen(req, timeout=${CONFIG.requestTimeoutSeconds}) as response:`,
         "    sys.stdout.write(response.read().decode('utf-8', 'ignore'))",
       ].join("\n"),
@@ -138,7 +162,17 @@ function pythonDownloadBinary(url, targetFile) {
         "import json, sys, urllib.request",
         "url = sys.argv[1]",
         "target = sys.argv[2]",
-        "req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X)'})",
+        "headers = {",
+        "    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',",
+        "    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',",
+        "    'Accept-Language': 'en-US,en;q=0.9',",
+        "    'Referer': 'https://www.cmegroup.com/solutions/clearing/operations-and-deliveries/nymex-delivery-notices.html',",
+        "    'Sec-Fetch-Site': 'same-origin',",
+        "    'Sec-Fetch-Mode': 'navigate',",
+        "    'Sec-Fetch-Dest': 'document',",
+        "    'Upgrade-Insecure-Requests': '1',",
+        "}",
+        "req = urllib.request.Request(url, headers=headers)",
         `with urllib.request.urlopen(req, timeout=${CONFIG.requestTimeoutSeconds}) as response:`,
         "    data = response.read()",
         "    with open(target, 'wb') as f:",
