@@ -2,6 +2,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const https = require("https");
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
 const timezone = require("dayjs/plugin/timezone");
@@ -154,56 +155,54 @@ function pythonFetchText(url) {
 }
 
 function pythonDownloadBinary(url, targetFile) {
-  const headerFile = path.join(CONFIG.tempDir, `${path.basename(targetFile)}.headers.txt`);
-  execFileSync(
-    "curl",
-    [
-      "-L",
-      "--fail",
-      "--silent",
-      "--show-error",
-      "--max-time",
-      String(CONFIG.requestTimeoutSeconds),
-      "--user-agent",
-      REQUEST_HEADERS["User-Agent"],
-      "--header",
-      `Accept: ${REQUEST_HEADERS.Accept}`,
-      "--header",
-      `Accept-Language: ${REQUEST_HEADERS["Accept-Language"]}`,
-      "--header",
-      `Referer: ${REQUEST_HEADERS.Referer}`,
-      "--header",
-      `Sec-Fetch-Site: ${REQUEST_HEADERS["Sec-Fetch-Site"]}`,
-      "--header",
-      `Sec-Fetch-Mode: ${REQUEST_HEADERS["Sec-Fetch-Mode"]}`,
-      "--header",
-      `Sec-Fetch-Dest: ${REQUEST_HEADERS["Sec-Fetch-Dest"]}`,
-      "--header",
-      `Upgrade-Insecure-Requests: ${REQUEST_HEADERS["Upgrade-Insecure-Requests"]}`,
-      "--dump-header",
-      headerFile,
-      "--output",
-      targetFile,
-      url,
-    ],
-    { encoding: "utf8" }
-  );
+  const script = [
+    "const https = require('https');",
+    "const fs = require('fs');",
+    "const url = process.argv[1];",
+    "const target = process.argv[2];",
+    `const headers = ${JSON.stringify(REQUEST_HEADERS)};`,
+    "function request(currentUrl, redirects = 0) {",
+    "  if (redirects > 5) throw new Error('too many redirects');",
+    "  return new Promise((resolve, reject) => {",
+    "    const req = https.get(currentUrl, { headers, timeout: 40000 }, (res) => {",
+    "      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {",
+    "        res.resume();",
+    "        const nextUrl = new URL(res.headers.location, currentUrl).toString();",
+    "        resolve(request(nextUrl, redirects + 1));",
+    "        return;",
+    "      }",
+    "      if (res.statusCode !== 200) {",
+    "        const chunks = [];",
+    "        res.on('data', (chunk) => chunks.push(chunk));",
+    "        res.on('end', () => reject(new Error(`HTTP ${res.statusCode}: ${Buffer.concat(chunks).toString('utf8')}`)));",
+    "        return;",
+    "      }",
+    "      const chunks = [];",
+    "      res.on('data', (chunk) => chunks.push(chunk));",
+    "      res.on('end', () => {",
+    "        const buffer = Buffer.concat(chunks);",
+    "        fs.writeFileSync(target, buffer);",
+    "        console.log(JSON.stringify({",
+    "          'last-modified': res.headers['last-modified'] || null,",
+    "          etag: res.headers.etag || null",
+    "        }));",
+    "      });",
+    "    });",
+    "    req.on('error', reject);",
+    "    req.on('timeout', () => req.destroy(new Error('request timeout')));",
+    "  });",
+    "}",
+    "request(url).catch((error) => {",
+    "  console.error(error.message || String(error));",
+    "  process.exit(1);",
+    "});",
+  ].join("\n");
 
-  const rawHeaders = fs.existsSync(headerFile) ? fs.readFileSync(headerFile, "utf8") : "";
-  const metadata = {};
-  for (const line of rawHeaders.split(/\r?\n/)) {
-    const separatorIndex = line.indexOf(":");
-    if (separatorIndex <= 0) {
-      continue;
-    }
-    const key = line.slice(0, separatorIndex).trim().toLowerCase();
-    const value = line.slice(separatorIndex + 1).trim();
-    if (key && value) {
-      metadata[key] = value;
-    }
-  }
+  const metadataJson = execFileSync("node", ["-e", script, url, targetFile], {
+    encoding: "utf8",
+  });
 
-  return metadata;
+  return JSON.parse(metadataJson);
 }
 
 function fetchCmeClearingHolidays() {
